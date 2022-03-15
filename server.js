@@ -7,11 +7,15 @@ const io = require("socket.io")(server, {
     methods: ["GET", "POST"],
   },
 });
+
 const { ExpressPeerServer } = require("peer");
 const peerServer = ExpressPeerServer(server, {
   debug: true,
 });
-const { v4: uuidV4 } = require("uuid");
+
+const { isMeetingOnline } = require("./api");
+const { Socket } = require("socket.io");
+
 app.use(cors());
 app.use("/peerjs", peerServer);
 
@@ -19,24 +23,33 @@ app.set("view engine", "ejs");
 app.use(express.static("public"));
 
 app.get("/", (req, res) => {
-  res.send("hey");
+  res.send("Homeroom server");
 });
 
 io.on("connection", (socket) => {
-  console.log("someone connected");
+  console.log("New socket connection");
   socket.on("join-room", (roomId, userId) => {
-    console.log(roomId, userId);
-    console.log("someone joined room", roomId, userId);
-    socket.join(roomId);
-    socket.to(roomId).broadcast?.emit("user-connected", userId);
-    // socket.on("message", (message) => {
-    //   //send message to the same room
-    //   io.to(roomId).emit("createMessage", message);
-    // });
+    isMeetingOnline(roomId)
+      .then((meetingDocument) => {
+        socket.join(roomId);
+        console.log(userId, "joined room", roomId);
+        socket.to(roomId).emit("user-connected", userId);
 
-    socket.on("disconnect", () => {
-      socket.to(roomId).broadcast.emit("user-disconnected", userId);
-    });
+        socket.on("disconnect", () => {
+          console.log(userId, "disconnected from", roomId);
+          socket.to(roomId).emit("user-disconnected", userId);
+        });
+      })
+      .catch((error) => {
+        console.warn(
+          userId,
+          "tryed to join",
+          roomId,
+          "and encountered ",
+          error
+        );
+        socket.emit("connection-error", error);
+      });
   });
 });
 
