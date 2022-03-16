@@ -33,27 +33,31 @@ io.on("connection", (socket) => {
     console.log("subscriber disconnected:", socket.id);
   });
   socket.on("join-room", (roomId, userId) => {
-    isMeetingOnline(roomId)
-      .then((meetingDocument) => {
-        socket.join(roomId);
-        console.log(userId, "joined room", roomId);
-        socket.to(roomId).emit("user-connected", userId);
+    socket.on("ready", () => {
+      console.log(socket.id, "declared ready");
 
-        socket.on("disconnect", () => {
-          console.log(userId, "disconnected from", roomId);
-          socket.to(roomId).emit("user-disconnected", userId);
+      isMeetingOnline(roomId)
+        .then((meetingDocument) => {
+          socket.join(roomId);
+          console.log(userId, "joined room", roomId);
+          socket.broadcast.to(roomId).emit("user-connected", userId);
+
+          socket.on("disconnect", () => {
+            console.log(userId, "disconnected from", roomId);
+            socket.broadcast.to(roomId).emit("user-disconnected", userId);
+          });
+        })
+        .catch((error) => {
+          console.warn(
+            userId,
+            "tryed to join",
+            roomId,
+            "and encountered ",
+            error
+          );
+          socket.emit("connection-error", error);
         });
-      })
-      .catch((error) => {
-        console.warn(
-          userId,
-          "tryed to join",
-          roomId,
-          "and encountered ",
-          error
-        );
-        socket.emit("connection-error", error);
-      });
+    });
   });
 });
 
