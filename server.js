@@ -8,13 +8,13 @@ const io = require("socket.io")(server, {
   },
 });
 
+io.listen(3033);
 const { ExpressPeerServer } = require("peer");
 const peerServer = ExpressPeerServer(server, {
   debug: true,
 });
 
 const { isMeetingOnline } = require("./api");
-const { Socket } = require("socket.io");
 
 app.use(cors());
 app.use("/peerjs", peerServer);
@@ -27,7 +27,11 @@ app.get("/", (req, res) => {
 });
 
 io.on("connection", (socket) => {
-  console.log("New socket connection");
+  console.log("subscriber connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("subscriber disconnected:", socket.id);
+  });
   socket.on("join-room", (roomId, userId) => {
     isMeetingOnline(roomId)
       .then((meetingDocument) => {
