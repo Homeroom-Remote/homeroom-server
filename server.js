@@ -33,6 +33,10 @@ io.on("connection", (socket) => {
     console.log("subscriber disconnected:", socket.id);
   });
   socket.on("join-room", (roomId, userId) => {
+    socket.on("new-stream", () => {
+      console.log(userId, "new stream");
+      socket.broadcast.to(roomId).emit("new-stream", userId);
+    });
     socket.on("ready", () => {
       console.log(socket.id, "declared ready");
 
