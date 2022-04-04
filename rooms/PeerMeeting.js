@@ -34,6 +34,24 @@ class PeerMeetingRoom extends Room {
       );
 
     // Success
+
+    // Register message callbacks
+    this.onMessage("chat-message", (client, message) => {
+      const senderObject = this.participants.get(client.sessionId);
+
+      const messageObject = {
+        sender: senderObject.sessionId,
+        uid: senderObject.uid,
+        name: senderObject.name,
+        time: new Date().toISOString(),
+        message: message,
+      };
+
+      // Broadcast message to everyone exepct the sender
+      this.broadcast("chat-message", messageObject, { except: client });
+      client.send("chat-message", { ...messageObject, me: true });
+    });
+    // Open meeting on server
     this.roomId = meetingId;
     this.owner = uid;
     const meetingData = await openMeetingOnServer(meetingId);
@@ -43,8 +61,9 @@ class PeerMeetingRoom extends Room {
 
   // Authorize client (before onJoin)
   async onAuth(client, options, request) {
+    const selectedName = options.name;
     const userData = await validateToken(options.accessToken);
-    if (userData) return userData;
+    if (userData) return { ...userData, name: selectedName };
     else throw new ServerError(400, "bad access token");
   }
 
@@ -53,6 +72,7 @@ class PeerMeetingRoom extends Room {
     const newParticipant = {
       sessionId: client.sessionId,
       uid: auth.uid,
+      name: auth.name,
     };
 
     this.broadcast("join", newParticipant, { except: client });
