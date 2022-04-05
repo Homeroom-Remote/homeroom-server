@@ -53,13 +53,6 @@ class PeerMeetingRoom extends Room {
     });
 
     this.onMessage("signal", (client, data) => {
-      console.log(
-        client.sessionId,
-        "signals",
-        data.sessionId,
-        "with",
-        data.data
-      );
       if (!this.participants.has(data.sessionId)) {
         console.log("invalid signal sessionId", data.sessionId);
         return;
