@@ -51,6 +51,25 @@ class PeerMeetingRoom extends Room {
       this.broadcast("chat-message", messageObject, { except: client });
       client.send("chat-message", { ...messageObject, me: true });
     });
+
+    this.onMessage("signal", (client, data) => {
+      console.log(
+        client.sessionId,
+        "signals",
+        data.sessionId,
+        "with",
+        data.data
+      );
+      if (!this.participants.has(data.sessionId)) {
+        console.log("invalid signal sessionId", data.sessionId);
+        return;
+      }
+
+      this.participants.get(data.sessionId).client.send("signal", {
+        sessionId: client.sessionId,
+        data: data.data,
+      });
+    });
     // Open meeting on server
     this.roomId = meetingId;
     this.owner = uid;
@@ -73,6 +92,7 @@ class PeerMeetingRoom extends Room {
       sessionId: client.sessionId,
       uid: auth.uid,
       name: auth.name,
+      client: client,
     };
 
     this.broadcast("join", newParticipant, { except: client });
@@ -90,7 +110,7 @@ class PeerMeetingRoom extends Room {
 
   // When client leaves the room
   onLeave(client, consented) {
-    this.broadcast("leave", client.sessionId);
+    this.broadcast("leave", { sessionId: client.sessionId });
     if (this.participants.has(client.sessionId)) {
       const uid = this.participants.get(client.sessionId).uid;
       removeParticipantFromMeeting(this.roomId, uid);
@@ -99,9 +119,12 @@ class PeerMeetingRoom extends Room {
   }
 
   // Cleanup, called after no more clients
-  onDispose() {
+  async onDispose() {
     console.log("No more clients, closing room");
-    this.roomId && closeMeetingOnServer(this.roomId);
+    this.roomId &&
+      (await closeMeetingOnServer(this.roomId)
+        .then(() => {})
+        .catch(() => {}));
   }
 }
 
