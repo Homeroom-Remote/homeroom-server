@@ -84,6 +84,7 @@ async function closeMeetingOnServer(meetingId) {
   return new Promise((resolve, reject) => {
     isMeetingExists(meetingId)
       .then((snapshot) => {
+        console.log(snapshot.val());
         getDoc(meetingId).update({
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
           status: "offline",
