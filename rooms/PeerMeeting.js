@@ -53,6 +53,7 @@ class PeerMeetingRoom extends Room {
     });
 
     this.onMessage("signal", (client, data) => {
+      const senderObject = this.participants.get(client.sessionId);
       if (!this.participants.has(data.sessionId)) {
         console.log("invalid signal sessionId", data.sessionId);
         return;
@@ -61,6 +62,8 @@ class PeerMeetingRoom extends Room {
       this.participants.get(data.sessionId).client.send("signal", {
         sessionId: client.sessionId,
         data: data.data,
+        uid: senderObject.uid,
+        name: senderObject.name,
       });
     });
     // Open meeting on server
@@ -115,9 +118,9 @@ class PeerMeetingRoom extends Room {
   async onDispose() {
     console.log("No more clients, closing room");
     this.roomId &&
-      (await closeMeetingOnServer(this.roomId)
+      closeMeetingOnServer(this.roomId)
         .then(() => {})
-        .catch(() => {}));
+        .catch(() => {});
   }
 }
 
