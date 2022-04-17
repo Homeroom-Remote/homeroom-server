@@ -9,6 +9,7 @@ const errors = {
   no_meeting_found: "No meeting found on DB",
 };
 const MEETINGS_COLLECTION_NAME = "meetings";
+const USERS_COLLECTION_NAME = "users";
 
 function getErrorObject(error_message_key, error) {
   return {
@@ -126,6 +127,17 @@ async function removeParticipantFromMeeting(meetingId, uid) {
   });
 }
 
+async function addMeetingToHistory(roomID, { uid }) {
+  db.collection(USERS_COLLECTION_NAME)
+    .doc(uid)
+    .set({
+      meeting_history: admin.firestore.FieldValue.arrayUnion({
+        id: roomID,
+        at: admin.firestore.Timestamp.now(),
+      }),
+    });
+}
+
 module.exports = {
   isMeetingExists,
   isMeetingOnline,
@@ -133,5 +145,7 @@ module.exports = {
   openMeetingOnServer,
   closeMeetingOnServer,
   addParticipantToMeeting,
+
   removeParticipantFromMeeting,
+  addMeetingToHistory,
 };
