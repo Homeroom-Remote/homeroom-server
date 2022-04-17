@@ -6,6 +6,7 @@ const {
   removeParticipantFromMeeting,
   closeMeetingOnServer,
   openMeetingOnServer,
+  addMeetingToHistory,
 } = require("../api");
 
 class PeerMeetingRoom extends Room {
@@ -75,11 +76,13 @@ class PeerMeetingRoom extends Room {
   }
 
   // Authorize client (before onJoin)
-  async onAuth(client, options, request) {
+  async onAuth(clieznt, options, request) {
     const selectedName = options.name;
     const userData = await validateToken(options.accessToken);
-    if (userData) return { ...userData, name: selectedName };
-    else throw new ServerError(400, "bad access token");
+    if (userData) {
+      addMeetingToHistory(this.roomId, userData);
+      return { ...userData, name: selectedName };
+    } else throw new ServerError(400, "bad access token");
   }
 
   // When client successfully joins the room
