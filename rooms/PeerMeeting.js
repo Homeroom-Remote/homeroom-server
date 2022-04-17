@@ -76,7 +76,7 @@ class PeerMeetingRoom extends Room {
   }
 
   // Authorize client (before onJoin)
-  async onAuth(client, options, request) {
+  async onAuth(clieznt, options, request) {
     const selectedName = options.name;
     const userData = await validateToken(options.accessToken);
     if (userData) {
