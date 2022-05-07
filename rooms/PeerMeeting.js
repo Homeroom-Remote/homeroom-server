@@ -53,6 +53,21 @@ class PeerMeetingRoom extends Room {
       client.send("chat-message", { ...messageObject, me: true });
     });
 
+    this.onMessage("hand-gesture", (client, message) => {
+      const senderObject = this.participants.get(client.sessionId);
+
+      const messageObject = {
+        sender: senderObject.sessionId,
+        uid: senderObject.uid,
+        name: senderObject.name,
+        time: new Date().toISOString(),
+        message: message,
+      };
+
+      // Broadcast message to everyone exepct the sender
+      this.broadcast("hand-gesture", messageObject, { except: client });
+    });
+
     this.onMessage("signal", (client, data) => {
       const senderObject = this.participants.get(client.sessionId);
       if (!this.participants.has(data.sessionId)) {
@@ -77,6 +92,7 @@ class PeerMeetingRoom extends Room {
 
   // Authorize client (before onJoin)
   async onAuth(clieznt, options, request) {
+    console.log(options);
     const selectedName = options.name;
     const userData = await validateToken(options.accessToken);
     if (userData) {
