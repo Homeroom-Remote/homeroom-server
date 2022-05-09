@@ -36,6 +36,9 @@ class PeerMeetingRoom extends Room {
 
     // Success
 
+    this.roomId = meetingId;
+    console.log("opened meeting", this.roomId);
+
     // Register message callbacks
     this.onMessage("chat-message", (client, message) => {
       const senderObject = this.participants.get(client.sessionId);
@@ -53,6 +56,21 @@ class PeerMeetingRoom extends Room {
       client.send("chat-message", { ...messageObject, me: true });
     });
 
+    this.onMessage("hand-gesture", (client, message) => {
+      const senderObject = this.participants.get(client.sessionId);
+
+      const messageObject = {
+        sender: senderObject.sessionId,
+        uid: senderObject.uid,
+        name: senderObject.name,
+        time: new Date().toISOString(),
+        message: message,
+      };
+
+      // Broadcast message to everyone exepct the sender
+      this.broadcast("hand-gesture", messageObject, { except: client });
+    });
+
     this.onMessage("signal", (client, data) => {
       const senderObject = this.participants.get(client.sessionId);
       if (!this.participants.has(data.sessionId)) {
@@ -67,8 +85,9 @@ class PeerMeetingRoom extends Room {
         name: senderObject.name,
       });
     });
+
     // Open meeting on server
-    this.roomId = meetingId;
+
     this.owner = uid;
     const meetingData = await openMeetingOnServer(meetingId);
 
@@ -109,6 +128,7 @@ class PeerMeetingRoom extends Room {
 
   // When client leaves the room
   onLeave(client, consented) {
+    console.log(client.sessionId, "left");
     this.broadcast("leave", { sessionId: client.sessionId });
     if (this.participants.has(client.sessionId)) {
       const uid = this.participants.get(client.sessionId).uid;
@@ -119,7 +139,7 @@ class PeerMeetingRoom extends Room {
 
   // Cleanup, called after no more clients
   async onDispose() {
-    console.log("No more clients, closing room");
+    console.log("No more clients, closing room", this.roomId);
     this.roomId &&
       closeMeetingOnServer(this.roomId)
         .then(() => {})
