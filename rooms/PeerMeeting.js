@@ -9,9 +9,15 @@ const {
   addMeetingToHistory,
 } = require("../api");
 
+const {
+  disposeQuestionIfExists,
+  isQuestionInQueue,
+} = require("../questionQueueUtils");
+
 class PeerMeetingRoom extends Room {
   // When room is initialized
   participants = new Map();
+  questionQueue = new Array();
   async onCreate(options) {
     // Validate User
     const userData = await validateToken(options.accessToken);
@@ -40,6 +46,10 @@ class PeerMeetingRoom extends Room {
     console.log("opened meeting", this.roomId);
 
     // Register message callbacks
+
+    this.onMessage("get-owner", (client, message) => {
+      client.send("get-owner", { owner: this.owner });
+    });
     this.onMessage("chat-message", (client, message) => {
       const senderObject = this.participants.get(client.sessionId);
 
@@ -86,6 +96,80 @@ class PeerMeetingRoom extends Room {
       });
     });
 
+    //////////////////////////
+    // Question queue messages
+    //////////////////////////
+    this.onMessage("get-question-queue", (client, data) => {
+      client.send("get-question-queue", { queue: this.questionQueue });
+    });
+
+    this.onMessage("add-to-question-queue", (client, data) => {
+      if (
+        !isQuestionInQueue(client.sessionId, this.questionQueue) &&
+        this.participants.has(client.sessionId)
+      ) {
+        const userObject = this.participants.get(client.sessionId);
+        const questionObject = {
+          id: client.sessionId,
+          uid: userObject.uid,
+          displayName: userObject.name,
+        };
+        this.questionQueue.push(questionObject);
+        this.broadcast("question-queue-update", {
+          event: "add",
+          data: questionObject,
+        });
+        client.send("question-queue-status", {
+          event: "add",
+          status: true,
+        });
+      } else {
+        client.send("question-queue-status", {
+          event: "add",
+          status: false,
+          message: "Already in queue.",
+        });
+      }
+    });
+
+    this.onMessage("remove-from-question-queue", (client, data) => {
+      console.log(data, client.sessionId, this.questionQueue);
+      const authorized =
+        (data.id &&
+          this.participants.get(client.sessionId)?.uid === this.owner) ||
+        client.sessionId === data.id ||
+        !data.id;
+
+      if (
+        !isQuestionInQueue(data.id, this.questionQueue) &&
+        !isQuestionInQueue(client.sessionId, this.questionQueue)
+      ) {
+        client.send("question-queue-status", {
+          event: "remove",
+          status: false,
+          message: "ID wasn't in queue",
+        });
+      } else if (!authorized) {
+        client.send("question-queue-status", {
+          event: "remove",
+          status: false,
+          message: "Not authorized",
+        });
+      } else {
+        const id = data.id || client.sessionId;
+        console.log(
+          `user ${client.sessionId} removing ${id} from question queue`
+        );
+        this.questionQueue = this.questionQueue.filter((qo) => qo.id !== id);
+        console.log(this.questionQueue);
+        this.broadcast("question-queue-update", {
+          event: "remove",
+          data: {
+            id: id,
+          },
+        });
+      }
+    });
     // Open meeting on server
 
     this.owner = uid;
@@ -95,7 +179,7 @@ class PeerMeetingRoom extends Room {
   }
 
   // Authorize client (before onJoin)
-  async onAuth(clieznt, options, request) {
+  async onAuth(client, options, request) {
     const selectedName = options.name;
     const userData = await validateToken(options.accessToken);
     if (userData) {
@@ -114,7 +198,12 @@ class PeerMeetingRoom extends Room {
     };
 
     this.broadcast("join", newParticipant, { except: client });
+
     this.participants.set(client.sessionId, newParticipant);
+
+    client.send("get-question-queue", { queue: this.questionQueue });
+    client.send("get-owner", { owner: this.owner });
+
     addParticipantToMeeting(this.roomId, auth.uid)
       .then((snapshot) => {
         return snapshot;
@@ -134,6 +223,18 @@ class PeerMeetingRoom extends Room {
       const uid = this.participants.get(client.sessionId).uid;
       removeParticipantFromMeeting(this.roomId, uid);
       this.participants.delete(client.sessionId);
+    }
+
+    if (isQuestionInQueue(client.sessionId, this.questionQueue)) {
+      this.questionQueue = this.questionQueue.filter(
+        (qo) => qo.id !== client.sessionId
+      );
+      this.broadcast("question-queue-update", {
+        event: "remove",
+        data: {
+          id: client.sessionId,
+        },
+      });
     }
   }
 
