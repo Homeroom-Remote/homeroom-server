@@ -135,8 +135,10 @@ async function addMeetingToHistory(roomID, { uid }) {
         id: roomID,
         at: admin.firestore.Timestamp.now(),
       }),
-    });
+    }, { merge: true });
 }
+
+
 
 module.exports = {
   isMeetingExists,
