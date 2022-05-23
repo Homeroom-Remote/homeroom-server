@@ -7,6 +7,7 @@ const {
   closeMeetingOnServer,
   openMeetingOnServer,
   addMeetingToHistory,
+  createLogsOnServer,
 } = require("../api");
 
 const {
@@ -18,6 +19,11 @@ class PeerMeetingRoom extends Room {
   // When room is initialized
   participants = new Map();
   questionQueue = new Array();
+  concentrationScore = new Map();
+  expressions = new Map();
+  machineLearningLogs = new Array();
+  statisticsInterval = null;
+  started = null;
   async onCreate(options) {
     // Validate User
     const userData = await validateToken(options.accessToken);
@@ -43,7 +49,12 @@ class PeerMeetingRoom extends Room {
     // Success
 
     this.roomId = meetingId;
+    this.started = new Date();
     console.log("opened meeting", this.roomId);
+    this.statisticsInterval = setInterval(
+      () => this.handleCheckpoint(this),
+      5000
+    );
 
     // Register message callbacks
 
@@ -66,6 +77,35 @@ class PeerMeetingRoom extends Room {
       client.send("chat-message", { ...messageObject, me: true });
     });
 
+    this.onMessage("concentration", (client, score) => {
+      if (this.concentrationScore.has(client.sessionId))
+        this.concentrationScore.set(client.sessionId, {
+          score: this.concentrationScore.get(client.sessionId).score + score,
+          samples: this.concentrationScore.get(client.sessionId).samples + 1,
+        });
+      else
+        this.concentrationScore.set(client.sessionId, {
+          score: score,
+          samples: 1,
+        });
+    });
+
+    this.onMessage("expressions", (client, expressions) => {
+      if (this.expressions.has(client.sessionId))
+        this.expressions.set(client.sessionId, {
+          expressions: [
+            ...this.expressions.get(client.sessionId).expressions,
+            expressions,
+          ],
+          samples: this.expressions.get(client.sessionId).samples + 1,
+        });
+      else
+        this.expressions.set(client.sessionId, {
+          expressions: [expressions],
+          samples: 1,
+        });
+      const senderObject = this.participants.get(client.sessionId);
+    });
     this.onMessage("hand-gesture", (client, message) => {
       const senderObject = this.participants.get(client.sessionId);
 
@@ -133,7 +173,6 @@ class PeerMeetingRoom extends Room {
     });
 
     this.onMessage("remove-from-question-queue", (client, data) => {
-      console.log(data, client.sessionId, this.questionQueue);
       const authorized =
         (data.id &&
           this.participants.get(client.sessionId)?.uid === this.owner) ||
@@ -241,10 +280,83 @@ class PeerMeetingRoom extends Room {
   // Cleanup, called after no more clients
   async onDispose() {
     console.log("No more clients, closing room", this.roomId);
-    this.roomId &&
-      closeMeetingOnServer(this.roomId)
-        .then(() => {})
-        .catch(() => {});
+    if (this.statisticsInterval) clearInterval(this.statisticsInterval);
+    if (this.roomId) {
+      if (this.machineLearningLogs.length > 0) {
+        console.log(this.machineLearningLogs);
+        await createLogsOnServer(this.roomId, this.machineLearningLogs);
+      }
+
+      await closeMeetingOnServer(this.roomId);
+    }
+  }
+
+  handleCheckpoint() {
+    var concentration = null;
+    var expressions = null;
+
+    if (this.concentrationScore.size > 0) {
+      const nParticipants = this.concentrationScore.size;
+      var mSamplesPerParticipant = 0;
+      var avgScore = 0;
+
+      for (let [key, value] of this.concentrationScore) {
+        mSamplesPerParticipant += value.samples;
+        avgScore += value.score;
+      }
+
+      mSamplesPerParticipant /= nParticipants;
+      avgScore /= mSamplesPerParticipant * nParticipants;
+
+      concentration = {
+        participants: nParticipants,
+        mSamples: mSamplesPerParticipant,
+        score: avgScore,
+      };
+
+      this.concentrationScore.clear();
+    }
+
+    if (this.expressions.size > 0) {
+      const nParticipants = this.expressions.size;
+      var mSamplesPerParticipant = 0;
+      var expressionArray = [];
+
+      for (let [key, value] of this.expressions) {
+        mSamplesPerParticipant += value.samples; // sum samples
+        expressionArray.push(...value.expressions); // create an expression array
+      }
+
+      mSamplesPerParticipant /= nParticipants;
+
+      const avgExpression = expressionArray[0]; // first expression is base object
+      expressionArray
+        .splice(1)
+        .forEach((obj) =>
+          Object.entries(obj).forEach(([k, v]) => (avgExpression[k] += v))
+        ); // traverse every expression object and sum it's values ot avgExpression
+
+      Object.keys(avgExpression).forEach(
+        (key) => (avgExpression[key] /= mSamplesPerParticipant * nParticipants)
+      ); // divide each reduced expression by sum of all samples
+
+      expressions = {
+        participants: nParticipants,
+        mSamples: mSamplesPerParticipant,
+        expressions: avgExpression,
+      };
+      this.expressions.clear();
+    }
+
+    if (concentration || expressions) {
+      const log = {
+        concentration: concentration,
+        expressions: expressions,
+        at: new Date(),
+      };
+      this.machineLearningLogs.push(log);
+      this.broadcast("face-recognition", log);
+    }
   }
 }
 

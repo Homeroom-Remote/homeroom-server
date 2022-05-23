@@ -82,19 +82,33 @@ async function openMeetingOnServer(meetingId) {
 }
 
 async function closeMeetingOnServer(meetingId) {
-  return new Promise((resolve, reject) => {
-    isMeetingExists(meetingId)
-      .then((snapshot) => {
-        console.log(snapshot.val());
-        getDoc(meetingId).update({
-          updated_at: admin.firestore.FieldValue.serverTimestamp(),
-          status: "offline",
-          participants: [],
-        });
-        resolve(snapshot);
-      })
-      .catch((e) => reject(e));
-  });
+  await isMeetingExists(meetingId)
+    .then((snapshot) => {
+      getDoc(meetingId).update({
+        updated_at: admin.firestore.FieldValue.serverTimestamp(),
+        status: "offline",
+        participants: [],
+      });
+      console.log(`closed meeting ${meetingId}`);
+    })
+    .catch((e) => console.log(`couldn't close meeting ${meetingId}: ${e}`));
+}
+
+async function createLogsOnServer(meetingId, logs) {
+  isMeetingExists(meetingId)
+    .then((snapshot) => {
+      getDoc(meetingId).set(
+        {
+          meeting_logs: admin.firestore.FieldValue.arrayUnion({
+            log: logs,
+            at: new Date(),
+          }),
+        },
+        { merge: true }
+      );
+      console.log(`logs for meeting ${meetingId} dumped`);
+    })
+    .catch((e) => console.log(`couldn't dump logs: ${e}`));
 }
 
 async function addParticipantToMeeting(meetingId, uid) {
@@ -130,15 +144,16 @@ async function removeParticipantFromMeeting(meetingId, uid) {
 async function addMeetingToHistory(roomID, { uid }) {
   db.collection(USERS_COLLECTION_NAME)
     .doc(uid)
-    .set({
-      meeting_history: admin.firestore.FieldValue.arrayUnion({
-        id: roomID,
-        at: admin.firestore.Timestamp.now(),
-      }),
-    }, { merge: true });
+    .set(
+      {
+        meeting_history: admin.firestore.FieldValue.arrayUnion({
+          id: roomID,
+          at: admin.firestore.Timestamp.now(),
+        }),
+      },
+      { merge: true }
+    );
 }
-
-
 
 module.exports = {
   isMeetingExists,
@@ -147,7 +162,7 @@ module.exports = {
   openMeetingOnServer,
   closeMeetingOnServer,
   addParticipantToMeeting,
-
   removeParticipantFromMeeting,
   addMeetingToHistory,
+  createLogsOnServer,
 };
