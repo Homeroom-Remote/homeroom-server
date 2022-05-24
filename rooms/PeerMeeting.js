@@ -24,6 +24,7 @@ class PeerMeetingRoom extends Room {
   machineLearningLogs = new Array();
   statisticsInterval = null;
   started = null;
+  peakParticipants = 0;
   async onCreate(options) {
     // Validate User
     const userData = await validateToken(options.accessToken);
@@ -229,6 +230,7 @@ class PeerMeetingRoom extends Room {
 
   // When client successfully joins the room
   async onJoin(client, options, auth) {
+    this.peakParticipants += 1;
     const newParticipant = {
       sessionId: client.sessionId,
       uid: auth.uid,
@@ -256,6 +258,7 @@ class PeerMeetingRoom extends Room {
 
   // When client leaves the room
   onLeave(client, consented) {
+    this.peakParticipants -= 1;
     console.log(client.sessionId, "left");
     this.broadcast("leave", { sessionId: client.sessionId });
     if (this.participants.has(client.sessionId)) {
@@ -283,8 +286,7 @@ class PeerMeetingRoom extends Room {
     if (this.statisticsInterval) clearInterval(this.statisticsInterval);
     if (this.roomId) {
       if (this.machineLearningLogs.length > 0) {
-        console.log(this.machineLearningLogs);
-        await createLogsOnServer(this.roomId, this.machineLearningLogs);
+        await createLogsOnServer(this.roomId, this.machineLearningLogs, this.started, this.peakParticipants);
       }
 
       await closeMeetingOnServer(this.roomId);

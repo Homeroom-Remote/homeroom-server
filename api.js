@@ -94,14 +94,21 @@ async function closeMeetingOnServer(meetingId) {
     .catch((e) => console.log(`couldn't close meeting ${meetingId}: ${e}`));
 }
 
-async function createLogsOnServer(meetingId, logs) {
+async function createLogsOnServer(
+  meetingId,
+  logs,
+  meetingStartedAt,
+  peakParticipants
+) {
   isMeetingExists(meetingId)
     .then((snapshot) => {
       getDoc(meetingId).set(
         {
           meeting_logs: admin.firestore.FieldValue.arrayUnion({
             log: logs,
-            at: new Date(),
+            from: meetingStartedAt,
+            to: new Date(),
+            peakParticipants: peakParticipants,
           }),
         },
         { merge: true }
