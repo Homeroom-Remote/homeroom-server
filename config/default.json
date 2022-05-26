@@ -1,5 +1,53 @@
 {
   "app": {
-    "port": 3030
+    "port": 3030,
+    "meeting_log_threshold_in_seconds": 10,
+    "meeting_score_threshold_in_minutes": 0,
+    "scoring_system": {
+      "questions": 0.13,
+      "question_requirements": [2, 20],
+      "chat": 0.02,
+      "chat_requirements": [4, 60],
+      "concentration": 0.5,
+      "concentration_requirements": 0.8,
+      "expressions": 0.35,
+      "expressions_requirements": 0,
+      "expressions_scoring": {
+        "neutral": 0,
+        "surprised_if_positive": 0.5,
+        "surprised_if_negative": -0.5,
+        "happy": 1,
+        "sad": -1,
+        "disgusted": -1,
+        "fearful": -1
+      },
+      "good_tip_threshold": 70,
+      "tips": {
+        "questions_bad": [
+          "🙋‍♂️ Encouraging participants to ask more questions will help both concentration and engagement 💹",
+          "🙋‍♀️ It is recommended to stop for questions approx. every 20 minutes ⏰"
+        ],
+        "concentration_bad": [
+          "🧠 Concentration wasn't very high. It is recommended to take small breaks to re-energize ☕",
+          "🧠 Concentration was low at times. Encouraging participants to ask questions can help with that! 🙋‍♂️",
+          "🧠 Concentration was low at times. You can identify exactly when using our graphs and focus on that time interval next time 💹"
+        ],
+        "expressions_bad": [
+          "😔 Some participants expressed bad feelings during the meeting. It is worth while checking if this correlates with loss of concentration 💤"
+        ],
+        "questions_good": [
+          "🙋‍♀️ Participants asked a lot of questions 🎓",
+          "🙋‍♂️ Participants were really happy to ask questions, keep that up 💯"
+        ],
+        "concentration_good": [
+          "🧠 Participants were very focused, that is a great sign of efficient learning 📚",
+          "🧠 Participants were very attentive, keep that up! 🏫"
+        ],
+        "expressions_good": [
+          "😊 Participants were contempt most of the time, great job! 💯",
+          "😅 A happy participant is a learning participant, keep that up! 🏫"
+        ]
+      }
+    }
   }
 }
