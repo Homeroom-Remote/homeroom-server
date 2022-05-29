@@ -27,6 +27,9 @@ class PeerMeetingRoom extends Room {
   statisticsInterval = null;
   started = null;
   peakParticipants = 0;
+  ////////////////////////////////////////
+  chatArray = new Array();
+  ////////////////////////////////////////
   async onCreate(options) {
     // Validate User
     const userData = await validateToken(options.accessToken);
@@ -60,6 +63,9 @@ class PeerMeetingRoom extends Room {
     );
 
     // Register message callbacks
+  ////////////////////////////////////////
+  this.onMessage("get-chat", (client, message) => {client.send("get-chat", this.chatArray);})
+  ////////////////////////////////////////
 
     this.onMessage("get-owner", (client, message) => {
       client.send("get-owner", { owner: this.owner });
@@ -73,7 +79,13 @@ class PeerMeetingRoom extends Room {
         name: senderObject.name,
         time: new Date().toISOString(),
         message: message,
+        messageSentAt: new Date(),
       };
+    
+
+  ////////////////////////////////////////
+  this.chatArray.push(messageObject)
+  ////////////////////////////////////////
 
       // Broadcast message to everyone exepct the sender
       this.engagementLogs.push({ event: "message", at: new Date() });
