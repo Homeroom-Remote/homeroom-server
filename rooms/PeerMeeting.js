@@ -27,6 +27,7 @@ class PeerMeetingRoom extends Room {
   statisticsInterval = null;
   started = null;
   peakParticipants = 0;
+  screenShare = null;
   ////////////////////////////////////////
   chatArray = new Array();
   ////////////////////////////////////////
@@ -63,9 +64,11 @@ class PeerMeetingRoom extends Room {
     );
 
     // Register message callbacks
-  ////////////////////////////////////////
-  this.onMessage("get-chat", (client, message) => {client.send("get-chat", this.chatArray);})
-  ////////////////////////////////////////
+    ////////////////////////////////////////
+    this.onMessage("get-chat", (client, message) => {
+      client.send("get-chat", this.chatArray);
+    });
+    ////////////////////////////////////////
 
     this.onMessage("get-owner", (client, message) => {
       client.send("get-owner", { owner: this.owner });
@@ -81,11 +84,10 @@ class PeerMeetingRoom extends Room {
         message: message,
         messageSentAt: new Date(),
       };
-    
 
-  ////////////////////////////////////////
-  this.chatArray.push(messageObject)
-  ////////////////////////////////////////
+      ////////////////////////////////////////
+      this.chatArray.push(messageObject);
+      ////////////////////////////////////////
 
       // Broadcast message to everyone exepct the sender
       this.engagementLogs.push({ event: "message", at: new Date() });
@@ -150,6 +152,46 @@ class PeerMeetingRoom extends Room {
         uid: senderObject.uid,
         name: senderObject.name,
       });
+    });
+
+    ////////////////////////
+    // Screen share messages
+    ////////////////////////
+    this.onMessage("share-screen", (client, data) => {
+      if (data?.event === "start") {
+        if (this.screenShare) {
+          client.send("share-screen", {
+            event: "denied-start",
+            data: "Screen share already in progress.",
+          }); // deny request
+          client.send("share-screen", {
+            event: "start",
+            user: this.screenShare,
+          }); // send actual screen share to mitigate bugs
+        } else {
+          this.screenShare = this.participants.get(client.sessionId).uid;
+          this.broadcast("share-screen", {
+            event: "start",
+            user: this.screenShare,
+          });
+        }
+      } else if (data?.event === "stop" && this.screenShare) {
+        if (
+          this.screenShare === client.sessionId ||
+          this.owner === this.participants.get(client.sessionId).uid
+        ) {
+          this.broadcast("share-screen", {
+            event: "stop",
+            from: this.screenShare,
+          });
+          this.screenShare = null;
+        } else {
+          client.send("share-screen", {
+            event: "denied-stop",
+            data: "Not authorized for that action.",
+          });
+        }
+      }
     });
 
     //////////////////////////
@@ -283,6 +325,13 @@ class PeerMeetingRoom extends Room {
       this.participants.delete(client.sessionId);
     }
 
+    if (this.screenShare === client.sessionId) {
+      this.broadcast("share-screen", {
+        event: "stop",
+        from: this.screenShare,
+      });
+      this.screenShare = null;
+    }
     if (isQuestionInQueue(client.sessionId, this.questionQueue)) {
       this.questionQueue = this.questionQueue.filter(
         (qo) => qo.id !== client.sessionId
