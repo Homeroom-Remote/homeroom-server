@@ -90,7 +90,11 @@ class PeerMeetingRoom extends Room {
       ////////////////////////////////////////
 
       // Broadcast message to everyone exepct the sender
-      this.engagementLogs.push({ event: "message", at: new Date() });
+      this.engagementLogs.push({
+        event: "message",
+        at: new Date(),
+        after: new Date() - this.started,
+      });
       this.broadcast("chat-message", messageObject, { except: client });
       client.send("chat-message", { ...messageObject, me: true });
     });
@@ -182,7 +186,7 @@ class PeerMeetingRoom extends Room {
         ) {
           this.broadcast("share-screen", {
             event: "stop",
-            from: this.screenShare,
+            user: this.screenShare,
           });
           this.screenShare = null;
         } else {
@@ -213,7 +217,11 @@ class PeerMeetingRoom extends Room {
           displayName: userObject.name,
         };
         this.questionQueue.push(questionObject);
-        this.engagementLogs.push({ event: "question", at: new Date() });
+        this.engagementLogs.push({
+          event: "question",
+          at: new Date(),
+          after: new Date() - this.started,
+        });
         this.broadcast("question-queue-update", {
           event: "add",
           data: questionObject,
