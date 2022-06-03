@@ -172,11 +172,17 @@ class PeerMeetingRoom extends Room {
             event: "start",
             user: this.screenShare,
           }); // send actual screen share to mitigate bugs
+        } else if (!data.streamId) {
+          client.send("share-screen", {
+            event: "denied-start",
+            data: "`streamId` field is required",
+          }); // deny request
         } else {
           this.screenShare = this.participants.get(client.sessionId).uid;
           this.broadcast("share-screen", {
             event: "start",
             user: this.screenShare,
+            streamId: data.streamId,
           });
         }
       } else if (data?.event === "stop" && this.screenShare) {
@@ -355,6 +361,7 @@ class PeerMeetingRoom extends Room {
 
   // Cleanup, called after no more clients
   async onDispose() {
+    if (!this.owner || !this.started) return;
     console.log("No more clients, closing room", this.roomId);
     if (this.statisticsInterval) clearInterval(this.statisticsInterval);
     if (this.roomId) {
