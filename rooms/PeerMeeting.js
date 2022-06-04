@@ -95,6 +95,47 @@ class PeerMeetingRoom extends Room {
       client.send("chat-message", { ...messageObject, me: true });
     });
 
+    this.onMessage("survey-form", (client, message) => {
+      const senderObject = this.participants.get(client.sessionId);
+
+      const messageObject = {
+        sender: senderObject.sessionId,
+        uid: senderObject.uid,
+        name: senderObject.name,
+        time: new Date().toISOString(),
+        message: message?.question,
+        surveyTime: message?.surveyTime,
+        messageSentAt: new Date(),
+      };
+      console.log(message)
+      // console.log(time)
+
+      this.broadcast("survey-question", messageObject, { except: client });
+    });
+
+    this.onMessage("survey-answer", (client, message) => {
+      const senderObject = this.participants.get(client.sessionId);
+
+      const messageObject = {
+        sender: senderObject.sessionId,
+        uid: senderObject.uid,
+        name: senderObject.name,
+        time: new Date().toISOString(),
+        message: message,
+      };
+
+      let owner_client;
+      for (let [key, value] of this.participants) {
+        if (value.uid === this.owner) {
+          owner_client = value.client;
+          break;
+        }
+      }
+
+      owner_client?.send("survey-answer-client", messageObject);
+    });
+
+
     this.onMessage("concentration", (client, score) => {
       if (this.concentrationScore.has(client.sessionId))
         this.concentrationScore.set(client.sessionId, {
@@ -355,7 +396,7 @@ class PeerMeetingRoom extends Room {
       if (
         this.machineLearningLogs.length > 0 &&
         meetingDurationInSeconds >=
-          (config.app.meeting_log_threshold_in_seconds || 1000)
+        (config.app.meeting_log_threshold_in_seconds || 1000)
       ) {
         const scoreObject = await this.calculateScore(
           this.machineLearningLogs,
