@@ -93,7 +93,7 @@ class PeerMeetingRoom extends Room {
       this.engagementLogs.push({
         event: "message",
         at: new Date(),
-        after: new Date() - this.started,
+        after: (new Date().getTime() - this.started.getTime()) / 1000,
       });
       this.broadcast("chat-message", messageObject, { except: client });
       client.send("chat-message", { ...messageObject, me: true });
@@ -267,7 +267,7 @@ class PeerMeetingRoom extends Room {
         this.engagementLogs.push({
           event: "question",
           at: new Date(),
-          after: new Date() - this.started,
+          after: (new Date().getTime() - this.started.getTime()) / 1000,
         });
         this.broadcast("question-queue-update", {
           event: "add",
