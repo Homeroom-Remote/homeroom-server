@@ -1,4 +1,5 @@
 const { Room, ServerError } = require("colyseus");
+const matchMaker = require("colyseus").matchMaker;
 const config = require("config");
 const {
   validateToken,
@@ -52,6 +53,12 @@ class PeerMeetingRoom extends Room {
         401,
         "not authorized to open a different meeting ID"
       );
+
+    const meetingsWithMeetingId = await matchMaker.query({
+      roomId: meetingId,
+    });
+    const isMeetingActive = meetingsWithMeetingId?.length > 0;
+    if (isMeetingActive) throw new ServerError(400, "meeting still active");
 
     // Success
 
@@ -111,7 +118,7 @@ class PeerMeetingRoom extends Room {
         surveyTime: message?.surveyTime,
         messageSentAt: new Date(),
       };
-      console.log(message)
+      console.log(message);
       // console.log(time)
 
       this.broadcast("survey-question", messageObject, { except: client });
@@ -138,7 +145,6 @@ class PeerMeetingRoom extends Room {
 
       owner_client?.send("survey-answer-client", messageObject);
     });
-
 
     this.onMessage("concentration", (client, score) => {
       if (this.concentrationScore.has(client.sessionId))
@@ -411,7 +417,7 @@ class PeerMeetingRoom extends Room {
       if (
         this.machineLearningLogs.length > 0 &&
         meetingDurationInSeconds >=
-        (config.app.meeting_log_threshold_in_seconds || 1000)
+          (config.app.meeting_log_threshold_in_seconds || 1000)
       ) {
         const scoreObject = await this.calculateScore(
           this.machineLearningLogs,
