@@ -386,7 +386,7 @@ class PeerMeetingRoom extends Room {
       this.participants.delete(client.sessionId);
     }
 
-    if (this.screenShare === client.sessionId) {
+    if (this.screenShare === client.auth.user_id) {
       this.broadcast("share-screen", {
         event: "stop",
         from: this.screenShare,
