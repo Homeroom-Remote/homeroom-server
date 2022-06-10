@@ -1,4 +1,5 @@
 const { Room, ServerError } = require("colyseus");
+const matchMaker = require("colyseus").matchMaker;
 const config = require("config");
 const {
   validateToken,
@@ -53,6 +54,12 @@ class PeerMeetingRoom extends Room {
         "not authorized to open a different meeting ID"
       );
 
+    const meetingsWithMeetingId = await matchMaker.query({
+      roomId: meetingId,
+    });
+    const isMeetingActive = meetingsWithMeetingId?.length > 0;
+    if (isMeetingActive) throw new ServerError(400, "meeting still active");
+
     // Success
 
     this.roomId = meetingId;
@@ -93,10 +100,50 @@ class PeerMeetingRoom extends Room {
       this.engagementLogs.push({
         event: "message",
         at: new Date(),
-        after: new Date() - this.started,
+        after: (new Date().getTime() - this.started.getTime()) / 1000,
       });
       this.broadcast("chat-message", messageObject, { except: client });
       client.send("chat-message", { ...messageObject, me: true });
+    });
+
+    this.onMessage("survey-form", (client, message) => {
+      const senderObject = this.participants.get(client.sessionId);
+
+      const messageObject = {
+        sender: senderObject.sessionId,
+        uid: senderObject.uid,
+        name: senderObject.name,
+        time: new Date().toISOString(),
+        message: message?.question,
+        surveyTime: message?.surveyTime,
+        messageSentAt: new Date(),
+      };
+      console.log(message);
+      // console.log(time)
+
+      this.broadcast("survey-question", messageObject, { except: client });
+    });
+
+    this.onMessage("survey-answer", (client, message) => {
+      const senderObject = this.participants.get(client.sessionId);
+
+      const messageObject = {
+        sender: senderObject.sessionId,
+        uid: senderObject.uid,
+        name: senderObject.name,
+        time: new Date().toISOString(),
+        message: message,
+      };
+
+      let owner_client;
+      for (let [key, value] of this.participants) {
+        if (value.uid === this.owner) {
+          owner_client = value.client;
+          break;
+        }
+      }
+
+      owner_client?.send("survey-answer-client", messageObject);
     });
 
     this.onMessage("concentration", (client, score) => {
@@ -172,11 +219,17 @@ class PeerMeetingRoom extends Room {
             event: "start",
             user: this.screenShare,
           }); // send actual screen share to mitigate bugs
+        } else if (!data.streamId) {
+          client.send("share-screen", {
+            event: "denied-start",
+            data: "`streamId` field is required",
+          }); // deny request
         } else {
           this.screenShare = this.participants.get(client.sessionId).uid;
           this.broadcast("share-screen", {
             event: "start",
             user: this.screenShare,
+            streamId: data.streamId,
           });
         }
       } else if (data?.event === "stop" && this.screenShare) {
@@ -220,7 +273,7 @@ class PeerMeetingRoom extends Room {
         this.engagementLogs.push({
           event: "question",
           at: new Date(),
-          after: new Date() - this.started,
+          after: (new Date().getTime() - this.started.getTime()) / 1000,
         });
         this.broadcast("question-queue-update", {
           event: "add",
@@ -304,6 +357,13 @@ class PeerMeetingRoom extends Room {
       client: client,
     };
 
+    console.log(this.participants);
+    client.send("update-participants", {
+      participants: this.participants
+        ? Object.fromEntries(this.participants)
+        : null,
+    });
+
     this.broadcast("join", newParticipant, { except: client });
 
     this.participants.set(client.sessionId, newParticipant);
@@ -333,7 +393,7 @@ class PeerMeetingRoom extends Room {
       this.participants.delete(client.sessionId);
     }
 
-    if (this.screenShare === client.sessionId) {
+    if (this.screenShare === client.auth.user_id) {
       this.broadcast("share-screen", {
         event: "stop",
         from: this.screenShare,
@@ -355,6 +415,7 @@ class PeerMeetingRoom extends Room {
 
   // Cleanup, called after no more clients
   async onDispose() {
+    if (!this.owner || !this.started) return;
     console.log("No more clients, closing room", this.roomId);
     if (this.statisticsInterval) clearInterval(this.statisticsInterval);
     if (this.roomId) {
