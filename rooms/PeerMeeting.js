@@ -357,6 +357,13 @@ class PeerMeetingRoom extends Room {
       client: client,
     };
 
+    console.log(this.participants);
+    client.send("update-participants", {
+      participants: this.participants
+        ? Object.fromEntries(this.participants)
+        : null,
+    });
+
     this.broadcast("join", newParticipant, { except: client });
 
     this.participants.set(client.sessionId, newParticipant);
