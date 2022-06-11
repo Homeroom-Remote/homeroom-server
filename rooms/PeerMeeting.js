@@ -118,9 +118,6 @@ class PeerMeetingRoom extends Room {
         surveyTime: message?.surveyTime,
         messageSentAt: new Date(),
       };
-      console.log(message);
-      // console.log(time)
-
       this.broadcast("survey-question", messageObject, { except: client });
     });
 
@@ -234,7 +231,7 @@ class PeerMeetingRoom extends Room {
         }
       } else if (data?.event === "stop" && this.screenShare) {
         if (
-          this.screenShare === client.sessionId ||
+          this.screenShare === client.auth.uid ||
           this.owner === this.participants.get(client.sessionId).uid
         ) {
           this.broadcast("share-screen", {
@@ -316,11 +313,7 @@ class PeerMeetingRoom extends Room {
         });
       } else {
         const id = data.id || client.sessionId;
-        console.log(
-          `user ${client.sessionId} removing ${id} from question queue`
-        );
         this.questionQueue = this.questionQueue.filter((qo) => qo.id !== id);
-        console.log(this.questionQueue);
         this.broadcast("question-queue-update", {
           event: "remove",
           data: {
@@ -357,7 +350,6 @@ class PeerMeetingRoom extends Room {
       client: client,
     };
 
-    console.log(this.participants);
     client.send("update-participants", {
       participants: this.participants
         ? Object.fromEntries(this.participants)
@@ -393,7 +385,7 @@ class PeerMeetingRoom extends Room {
       this.participants.delete(client.sessionId);
     }
 
-    if (this.screenShare === client.auth.user_id) {
+    if (this.screenShare === client.auth.uid) {
       this.broadcast("share-screen", {
         event: "stop",
         from: this.screenShare,
